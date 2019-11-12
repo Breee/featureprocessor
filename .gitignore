@@ -124,3 +124,7 @@ dmypy.json
 .pyre/
 
 core/settings.py
+
+featureprocessor/core/settings.py
+
+featureprocessor/.idea/

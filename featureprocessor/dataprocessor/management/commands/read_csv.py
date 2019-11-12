@@ -11,6 +11,12 @@ class Command(BaseCommand):
         parser.add_argument('files', nargs='+', default=[])
         parser.add_argument('-c', '--clear', default=False, action='store_true')
 
+    def parse_sorts(self, sorts):
+        return sorts.strip('[]').split(', ')
+
+    def parse_functions(self, functions):
+        return functions.strip('[]').split(', ')
+
     def handle(self, *args, **kwargs):
         if kwargs['clear']:
             SMTFeature.objects.all().delete()
@@ -27,11 +33,10 @@ class Command(BaseCommand):
                     dagsize = row['dagsize']
                     treesize = row['treesize']
                     dependencyScore = row['dependencyScore']
-                    #variableEquivalenceClassSizes = json.loads(row['variableEquivalenceClassSizes'])
+                    variableEquivalenceClassSizes = json.loads(row['variableEquivalenceClassSizes'])
                     biggestEquivalenceClass = row['biggestEquivalenceClass']
-                    #occuringSorts = json.loads(row['occuringSorts'])
-                    #occuringFunctions = json.loads(row['occuringFunctions'])
-                    #occuringQuantifiers = json.loads(row['occuringQuantifiers'])
+                    occuringSorts = self.parse_sorts(row['occuringSorts'])
+                    occuringFunctions = self.parse_functions(row['occuringFunctions'])
                     containsArrays = True if row['containsArrays'] == 'true' else False
                     assertionStack = row['assertionStack']
                     assertionStackHashCode = row['assertionStackHashCode']
@@ -44,17 +49,23 @@ class Command(BaseCommand):
                                                          number_of_arrays=numberOfArrays,
                                                          dagsize=dagsize,
                                                          treesize=treesize,
+                                                         variable_equivalence_class_sizes=variableEquivalenceClassSizes,
                                                          dependency_score=dependencyScore,
                                                          biggest_equivalence_class=biggestEquivalenceClass,
                                                          contains_arrays=containsArrays,
                                                          assertion_stack_hashcode=assertionStackHashCode,
                                                          solver_result=solverresult,
                                                          solver_time=solvertime,
+                                                         occuring_sorts=occuringSorts,
+                                                         occuring_functions=occuringFunctions,
                                                          defaults={"assertion_stack": assertionStack}
                                                          )
                     if create:
-                        print(f"created feature {feature.id}")
+                        #print(f"created feature {feature.id}")
+                        pass
                     else:
-                        print(f"updated feature {feature.id}")
+                        #print(f"updated feature {feature.id}")
+                        pass
+
 
 

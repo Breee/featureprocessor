@@ -31,3 +31,6 @@ class SMTFeature(models.Model):
     assertion_stack_hashcode = models.BigIntegerField(default=-1,null=True, db_index=True)
     solver_result = models.CharField(max_length=20,null=True)
     solver_time = models.FloatField(default=-1,null=True)
+
+    def __str__(self):
+        return f'{self.assertion_stack_hashcode} (time: {self.solver_time})'
