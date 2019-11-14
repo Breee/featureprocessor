@@ -8,7 +8,9 @@ import seaborn as sns
 import pandas as pd
 import numpy as np
 import json
+import matplotlib.pyplot as plt
 
+sns.set_style(rc={"pdf.fonttype": 3})
 
 class Command(BaseCommand):
     help = 'read csv and create SMTfeatures.'
@@ -68,7 +70,8 @@ class Command(BaseCommand):
         plot = sns.pairplot(data=df, hue='solver_result', y_vars=ycolumns, x_vars=xcolumns)
         plot.set(ylim=(lower, upper))
         plot.fig.suptitle(f'{solver}: range from {lower} to {upper} milliseconds solver_time', y=1.1)
-        plot.savefig(f"{solver}_{lower}_to_{upper}_{name}.png")
+        plot.savefig(f"{solver}_{lower}_to_{upper}_{name}.png", format='png')
+        plt.close("all")
 
     def handle(self, *args, **kwargs):
         frames = []
@@ -118,10 +121,9 @@ class Command(BaseCommand):
                               x.solver_result,
                               x.solver_time,
                               x.solver_name]
-                    dataframe = pd.DataFrame([cols], columns=col_names)
-                    dataframes.append(dataframe)
-                frames = frames + dataframes
+                    dataframes.append(pd.DataFrame([cols], columns=col_names))
                 print("concatenate frames")
+                frames = frames + dataframes
                 df = pd.concat(frames)
                 print(f"generating plots for {solver},  {lower} to {upper} ms")
 
