@@ -45,18 +45,6 @@ class Command(BaseCommand):
                                      x.biggest_equivalence_class,
                                      x.dependency_score,
                                      np.mean(solver_times_without_outliers)]]
-            #feature, create = SMTFeature.objects.update_or_create(number_of_variables=x.number_of_variables,
-            #                                                      number_of_functions=x.number_of_functions,
-            #                                                      number_of_arrays=x.number_of_arrays,
-            #                                                      contains_arrays=x.contains_arrays,
-            #                                                      occuring_functions=x.occuring_functions,
-            #                                                      occuring_sorts=x.occuring_sorts,
-            #                                                      dagsize=x.dagsize,
-            #                                                      biggest_equivalence_class=x.biggest_equivalence_class,
-            #                                                      dependency_score=x.dependency_score,
-            #                                                      aggregated=True,
-            #                                                      defaults={"assertion_stack": dupe_hash}
-            #                                                      )
             frames.append(pd.DataFrame(merged_frame_columns,
                                        columns=['number_of_variables',
                                                 'number_of_functions',
@@ -94,7 +82,7 @@ class Command(BaseCommand):
                                                                     'biggest_equivalence_class',
                                                                     'dependency_score',
                                                                     'solvertime'])
-                           for x in SMTFeature.objects.all().exclude(assertion_stack_hashcode__in=dupe_hashs)]
+                           for x in SMTFeature.objects.all()]
         df = pd.concat(frames)
         df['contains_arrays'] = df['contains_arrays'].replace({False: 0, True: 1})
         df = df.assign(**{function: [1 if function in cell else 0 for cell in df.occuring_functions.tolist()]

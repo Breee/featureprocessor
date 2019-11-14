@@ -11,12 +11,6 @@ class Command(BaseCommand):
         parser.add_argument('files', nargs='+', default=[])
         parser.add_argument('-c', '--clear', default=False, action='store_true')
 
-    def parse_sorts(self, sorts):
-        return sorts.strip('[]').split(', ')
-
-    def parse_functions(self, functions):
-        return functions.strip('[]').split(', ')
-
     def handle(self, *args, **kwargs):
         if kwargs['clear']:
             SMTFeature.objects.all().delete()
@@ -35,13 +29,15 @@ class Command(BaseCommand):
                     dependencyScore = row['dependencyScore']
                     variableEquivalenceClassSizes = json.loads(row['variableEquivalenceClassSizes'])
                     biggestEquivalenceClass = row['biggestEquivalenceClass']
-                    occuringSorts = self.parse_sorts(row['occuringSorts'])
-                    occuringFunctions = self.parse_functions(row['occuringFunctions'])
+                    occuringSorts = json.loads(row['occuringSorts'])
+                    occuringFunctions = json.loads(row['occuringFunctions'])
+                    occuringQuantifiers = json.loads(row['occuringQuantifiers'])
                     containsArrays = True if row['containsArrays'] == 'true' else False
                     assertionStack = row['assertionStack']
                     assertionStackHashCode = row['assertionStackHashCode']
                     solverresult = row['solverresult']
                     solvertime = row['solvertime']
+                    solvername = row['solvername']
 
                     feature, create =  SMTFeature.objects.update_or_create(number_of_functions=numberOfFunctions,
                                                          number_of_quantifiers=numberOfQuantifiers,
@@ -56,8 +52,10 @@ class Command(BaseCommand):
                                                          assertion_stack_hashcode=assertionStackHashCode,
                                                          solver_result=solverresult,
                                                          solver_time=solvertime,
+                                                         solver_name=solvername,
                                                          occuring_sorts=occuringSorts,
                                                          occuring_functions=occuringFunctions,
+                                                         occuring_quantifiers=occuringQuantifiers,
                                                          defaults={"assertion_stack": assertionStack}
                                                          )
                     if create:
