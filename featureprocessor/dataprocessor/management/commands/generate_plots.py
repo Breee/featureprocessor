@@ -3,6 +3,7 @@ from django.db.models import Count
 
 from dataprocessor.models import SMTFeature
 from django.db.models import Q
+from sklearn.cluster import MiniBatchKMeans
 
 import seaborn as sns
 import pandas as pd
@@ -67,14 +68,27 @@ class Command(BaseCommand):
         return sorted(set(sorts)), sorted(set(functions)), sorted(set(quantifiers)), sorted(set(solvers)), sorted(set(results))
 
     def generate_plot(self,df, xcolumns, ycolumns, solver, name, lower, upper):
-        plot = sns.pairplot(data=df, hue='solver_result', y_vars=ycolumns, x_vars=xcolumns)
+        plot = sns.pairplot(data=df, hue='solver_result', y_vars=ycolumns, x_vars=xcolumns, plot_kws={"s": 5}
+                            )
         plot.set(ylim=(lower, upper))
         plot.fig.suptitle(f'{solver}: range from {lower} to {upper} milliseconds solver_time', y=1.1)
         plot.savefig(f"{solver}_{lower}_to_{upper}_{name}.png", format='png')
         plt.close("all")
 
+
+    def detect_outlier(self, data_1):
+        outliers = []
+        threshold = 3
+        mean_1 = np.mean(data_1)
+        std_1 = np.std(data_1)
+
+        for y in data_1:
+            z_score = (y - mean_1) / std_1
+            if np.abs(z_score) > threshold:
+                outliers.append(y)
+        return outliers
+
     def handle(self, *args, **kwargs):
-        frames = []
         sorts, functions, quantifiers, solvers, results = self.collect_sorts_functions_quantifiers_solvers()
         col_names = ['number_of_functions',
                      'number_of_quantifiers',
@@ -92,16 +106,15 @@ class Command(BaseCommand):
                        'solver_result',
                        'solver_time',
                        'solver_name']
+        intervals = [(0,1000),(0,5000), (0,50000), (0,100000), (100000,200000), (200000, 500000), (0,500000), (0,1000000)]
+#        intervals = [(200000, 500000)]
 
-        #print("Generating plots")
-        #plot1 = sns.pairplot(df)
-        #plot1.savefig("all.png")
-        #
         for solver in solvers:
-            for lower,upper in [(0,1000),(0,5000), (0,50000), (0,100000), (100000,200000), (200000, 500000), (0,500000), (0,1000000)]:
+            for lower,upper in intervals:
+                print(f"generating plots for {solver},  {lower} to {upper} ms")
                 print("generating dataframe list")
                 dataframes = []
-                for x in SMTFeature.objects.filter(solver_name=solver).filter(solver_time__lt=upper).filter(solver_time__gt=lower):
+                for x in SMTFeature.objects.all().filter(solver_name=solver).filter(solver_time__lte=upper).filter(solver_time__gte=lower):
                     cols = [x.number_of_functions,
                             x.number_of_quantifiers,
                             x.number_of_variables,
@@ -123,9 +136,15 @@ class Command(BaseCommand):
                               x.solver_name]
                     dataframes.append(pd.DataFrame([cols], columns=col_names))
                 print("concatenate frames")
-                frames = frames + dataframes
-                df = pd.concat(frames)
-                print(f"generating plots for {solver},  {lower} to {upper} ms")
+                df = pd.concat(dataframes)
+                print(f'Datapoints: {len(df)}')
+
+                distplot = sns.distplot(df['solver_time'], hist=True, kde=False,
+                                        bins=20, color='blue',
+                                        hist_kws={'edgecolor': 'black'})
+                distplot.set(xlim=(lower, upper))
+                distplot.get_figure().savefig(f"{solver}_{lower}_to_{upper}_dist.png")
+                plt.close("all")
 
                 plot_columns = ['number_of_functions',
                                 'number_of_variables',
