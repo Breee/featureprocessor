@@ -1,14 +1,11 @@
 from django.core.management.base import BaseCommand
 from django.db.models import Count
+from matplotlib.axes import Axes
 
 from dataprocessor.models import SMTFeature
-from django.db.models import Q
-from sklearn.cluster import MiniBatchKMeans
-
 import seaborn as sns
 import pandas as pd
 import numpy as np
-import json
 import matplotlib.pyplot as plt
 
 sns.set_style(rc={"pdf.fonttype": 3})
@@ -67,12 +64,41 @@ class Command(BaseCommand):
             results.append(x.solver_result)
         return sorted(set(sorts)), sorted(set(functions)), sorted(set(quantifiers)), sorted(set(solvers)), sorted(set(results))
 
-    def generate_plot(self,df, xcolumns, ycolumns, solver, name, lower, upper):
-        plot = sns.pairplot(data=df, hue='solver_result', y_vars=ycolumns, x_vars=xcolumns, plot_kws={"s": 5}
-                            )
+    def generate_plot(self,df, xcolumns, ycolumns, solver, name, lower, upper, num_datapoints):
+        plot = sns.pairplot(data=df, hue='solver_result', y_vars=ycolumns, x_vars=xcolumns, plot_kws={"s": 5})
         plot.set(ylim=(lower, upper))
-        plot.fig.suptitle(f'{solver}: range from {lower} to {upper} milliseconds solver_time', y=1.1)
+        plot.fig.suptitle(f'{solver}: {lower} to {upper} ms - {num_datapoints} Datapoints', y=1.1)
         plot.savefig(f"{solver}_{lower}_to_{upper}_{name}.png", format='png')
+        plt.close("all")
+
+
+    def generate_plots(self,df, xcolumns, ycolumns, solver, name, lower, upper, num_datapoints):
+        # Subplots are organized in a Rows x Cols Grid
+        # Tot and Cols are known
+        total = len(xcolumns)
+        num_columns = 3
+
+        # Compute Rows required
+        rows = total // num_columns
+        rows += total % num_columns
+
+        # Create a Position index
+        position = range(1, total + 1)
+
+        # Create main figure
+        fig = plt.figure(1,figsize = (18,90))
+        for k in range(total):
+            # add every single subplot to the figure with a for loop
+            ax: Axes = fig.add_subplot(rows, num_columns, position[k])
+            xlabel = xcolumns[k]
+            ylabel = ycolumns[0]
+            ax.scatter(df[xlabel], df[ylabel], s=[0.1 for x in range(len(df[xlabel]))])
+            ax.title.set_text(f'{solver}\n{lower}-{upper}ms,{num_datapoints} dp')
+            ax.set_xlabel(xlabel)
+            ax.set_ylabel(ylabel)
+
+        fig.tight_layout()  # Or equivalently,  "plt.tight_layout()"
+        fig.savefig(f'{solver}_{lower}-{upper}ms_{num_datapoints}dp.png')
         plt.close("all")
 
 
@@ -90,6 +116,11 @@ class Command(BaseCommand):
 
     def handle(self, *args, **kwargs):
         sorts, functions, quantifiers, solvers, results = self.collect_sorts_functions_quantifiers_solvers()
+        print(f'sorts: {sorts}')
+        print(f'functions: {functions}')
+        print(f'quantifiers: {quantifiers}')
+        print(f'solvers: {solvers}')
+        print(f'results: {results}')
         col_names = ['number_of_functions',
                      'number_of_quantifiers',
                      'number_of_variables',
@@ -107,7 +138,7 @@ class Command(BaseCommand):
                        'solver_time',
                        'solver_name']
         intervals = [(0,1000),(0,5000), (0,50000), (0,100000), (100000,200000), (200000, 500000), (0,500000), (0,1000000)]
-#        intervals = [(200000, 500000)]
+        #        intervals = [(200000, 500000)]
 
         for solver in solvers:
             for lower,upper in intervals:
@@ -137,33 +168,35 @@ class Command(BaseCommand):
                     dataframes.append(pd.DataFrame([cols], columns=col_names))
                 print("concatenate frames")
                 df = pd.concat(dataframes)
-                print(f'Datapoints: {len(df)}')
+                num_datapoints = len(df)
+                print(f'Datapoints: {num_datapoints}')
 
-                distplot = sns.distplot(df['solver_time'], hist=True, kde=False,
-                                        bins=20, color='blue',
-                                        hist_kws={'edgecolor': 'black'})
-                distplot.set(xlim=(lower, upper))
-                distplot.get_figure().savefig(f"{solver}_{lower}_to_{upper}_dist.png")
+
+                # Distribution plots
+                f, axes = plt.subplots(1, 2, figsize=(8, 8), sharex=True)
+                sat = df[df['solver_result'] == 'sat']
+                unsat = df[df['solver_result'] == 'unsat']
+                sns.distplot(sat['solver_time'], color="green", hist=True, kde=False, bins=20,hist_kws={'edgecolor': 'black'}, ax=axes[0], label="sat")
+                sns.distplot(unsat['solver_time'], color="red",hist=True, kde=False, bins=20,hist_kws={'edgecolor': 'black'},ax=axes[1], label="unsat")
+                axes[0].legend(['sat'])
+                axes[1].legend(['unsat'])
+                f.tight_layout()
+                f.savefig(f"{solver}_{lower}_to_{upper}_dist.png")
                 plt.close("all")
 
-                plot_columns = ['number_of_functions',
+                metric_columns = ['number_of_functions',
                                 'number_of_variables',
                                 'number_of_arrays',
                                 'treesize',
                                 'dependency_score',
                                 'biggest_equivalence_class']
-                self.generate_plot(df=df, xcolumns=plot_columns, ycolumns=['solver_time'], solver=solver, name='metrics', lower=lower,upper=upper)
-
-
-                plot_columns = ['(Array Int (Array Int Int))',
+                sort_columns = ['(Array Int (Array Int Int))',
                                 '(Array Int Bool)',
                                 '(Array Int Int)',
                                 'Bool',
                                 'Int',
                                 'Real']
-                self.generate_plot(df=df, xcolumns=plot_columns, ycolumns=['solver_time'], solver=solver, name='sorts', lower=lower,upper=upper)
-
-                plot_columns = ['*',
+                func_columns = ['*',
                                 '+',
                                 '-',
                                 '/',
@@ -181,7 +214,7 @@ class Command(BaseCommand):
                                 'or',
                                 'select',
                                 'store']
-                self.generate_plot(df=df, xcolumns=plot_columns, ycolumns=['solver_time'], solver=solver, name='functions', lower=lower,upper=upper)
+                self.generate_plots(df=df, xcolumns=metric_columns+sort_columns+func_columns, ycolumns=['solver_time'], solver=solver, name='metrics', lower=lower,upper=upper, num_datapoints=num_datapoints)
 
 
 
