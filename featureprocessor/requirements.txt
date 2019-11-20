@@ -3,3 +3,4 @@ django
 seaborn
 sklearn
 auto-sklearn
+img2pdf
