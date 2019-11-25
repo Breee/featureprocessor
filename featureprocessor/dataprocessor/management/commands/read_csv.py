@@ -13,7 +13,10 @@ class Command(BaseCommand):
 
     def check_and_get_row(self, row, key, expected_type, default, is_json=False):
         try:
-            value = expected_type(row.get(key, default))
+            if not isinstance(expected_type, str):
+                value = expected_type(row.get(key, default))
+            else:
+                value = row.get(key, default)
         except (ValueError, TypeError):
             value = default
         if not isinstance(value, expected_type):
@@ -32,6 +35,7 @@ class Command(BaseCommand):
             SMTFeature.objects.all().delete()
         files = kwargs['files']
         csv.field_size_limit(2147483647)
+        processed = 0
         for file in files:
             with open(file, 'r') as csv_file:
                 csv_reader = csv.DictReader(csv_file, delimiter=';')
@@ -73,7 +77,7 @@ class Command(BaseCommand):
                                                                            occuring_sorts=occuringSorts,
                                                                            occuring_functions=occuringFunctions,
                                                                            occuring_quantifiers=occuringQuantifiers,
-                                                                           defaults={"assertion_stack": assertionStack}
+                                                                           defaults={"assertion_stack": assertionStack, 'solver_result': solverresult}
                                                                            )
                     if create:
                         #print(f"created feature {feature.id}")
@@ -81,6 +85,11 @@ class Command(BaseCommand):
                     else:
                         #print(f"updated feature {feature.id}")
                         pass
+
+                    processed += 1
+                    if processed % 10000 == 0:
+                        print(processed)
+
 
 
 

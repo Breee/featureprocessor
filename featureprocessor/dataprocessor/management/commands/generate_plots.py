@@ -15,7 +15,7 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         # Positional arguments are standalone name
-        pass
+        parser.add_argument('dumppath', default='.')
 
     def reject_outliers(self, data, m=2.):
         d = np.abs(data - np.median(data))
@@ -46,23 +46,29 @@ class Command(BaseCommand):
                                        columns=['num_vars', 'num_quantifier', 'num_funcs', 'eqiv', 'dependency',
                                                 'solvertime']))
 
+    def add_to_set(self, the_set, the_data):
+        if isinstance(the_data, dict):
+            for k, v in the_data.items():
+                the_set.add(k)
+        elif isinstance(the_data, list):
+            the_set.union(set(the_data))
+        elif isinstance(the_data, str):
+            the_set.add(the_data)
+
     def collect_sorts_functions_quantifiers_solvers(self):
+        sorts = set()
+        functions = set()
+        quantifiers = set()
+        solvers = set()
+        results = set()
         features = SMTFeature.objects.all()
-        sorts = []
-        functions = []
-        quantifiers = []
-        solvers = []
-        results = []
-        for x in features:
-            for k,v in x.occuring_sorts.items():
-                sorts.append(k)
-            for k, v in x.occuring_functions.items():
-                functions.append(k)
-            for k, v in x.occuring_quantifiers.items():
-                quantifiers.append(k)
-            solvers.append(x.solver_name)
-            results.append(x.solver_result)
-        return sorted(set(sorts)), sorted(set(functions)), sorted(set(quantifiers)), sorted(set(solvers)), sorted(set(results))
+        for x in features.iterator():
+            self.add_to_set(sorts, x.occuring_sorts)
+            self.add_to_set(functions, x.occuring_functions)
+            self.add_to_set(quantifiers, x.occuring_quantifiers)
+            self.add_to_set(solvers, x.solver_name)
+            self.add_to_set(results, x.solver_result)
+        return sorted(sorts), sorted(functions), sorted(quantifiers), sorted(solvers), sorted(results)
 
     def generate_plot(self,df, xcolumns, ycolumns, solver, name, lower, upper, num_datapoints):
         plot = sns.pairplot(data=df, hue='solver_result', y_vars=ycolumns, x_vars=xcolumns, plot_kws={"s": 5})
@@ -72,7 +78,7 @@ class Command(BaseCommand):
         plt.close("all")
 
 
-    def generate_plots(self,df, xcolumns, ycolumns, solver, name, lower, upper, num_datapoints):
+    def generate_plots(self,df, xcolumns, ycolumns, solver, name, lower, upper, num_datapoints,dumppath):
         # Subplots are organized in a Rows x Cols Grid
         # Tot and Cols are known
         total = len(xcolumns)
@@ -92,13 +98,29 @@ class Command(BaseCommand):
             ax: Axes = fig.add_subplot(rows, num_columns, position[k])
             xlabel = xcolumns[k]
             ylabel = ycolumns[0]
-            ax.scatter(df[xlabel], df[ylabel], s=[0.1 for x in range(len(df[xlabel]))])
+            sat = df[df['solver_result'] == 'sat']
+            unsat = df[df['solver_result'] == 'unsat']
+            ax.scatter(unsat[xlabel], unsat[ylabel], color=['red'], s=[2 for x in range(len(unsat))])
+            ax.scatter(sat[xlabel], sat[ylabel], color=['green'], s=[2 for x in range(len(sat))])
+            ax.legend(['unsat', 'sat'])
             ax.title.set_text(f'{solver}\n{lower}-{upper}ms,{num_datapoints} dp')
             ax.set_xlabel(xlabel)
             ax.set_ylabel(ylabel)
 
-        fig.tight_layout()  # Or equivalently,  "plt.tight_layout()"
-        fig.savefig(f'{solver}_{lower}-{upper}ms_{num_datapoints}dp.png')
+        fig.tight_layout()
+        fig.savefig(f'{dumppath}/{solver}_{lower}-{upper}ms_{num_datapoints}dp.png')
+        plt.close("all")
+
+    def generate_correlation_plots(self,df, xcolumns, ycolumns, solver, name, lower, upper, num_datapoints,dumppath):
+
+        # Create main figure
+        fig = plt.figure(1,figsize = (19,15))
+        plt.matshow(df.corr(), fignum=fig.number)
+        plt.xticks(range(df.shape[1]), df.columns, fontsize=14, rotation=45)
+        plt.yticks(range(df.shape[1]), df.columns, fontsize=14)
+        plt.title.set_text(f'{solver}\n{lower}-{upper}ms,{num_datapoints}dp correlation')
+        fig.tight_layout()
+        fig.savefig(f'{dumppath}/{solver}_{lower}-{upper}ms_{num_datapoints}dp_CORRELATION.png')
         plt.close("all")
 
 
@@ -181,7 +203,7 @@ class Command(BaseCommand):
                 axes[0].legend(['sat'])
                 axes[1].legend(['unsat'])
                 f.tight_layout()
-                f.savefig(f"{solver}_{lower}_to_{upper}_dist.png")
+                f.savefig(f"{kwargs.get('dumppath')}/{solver}_{lower}-{upper}ms_dist.png")
                 plt.close("all")
 
                 metric_columns = ['number_of_functions',
@@ -214,7 +236,8 @@ class Command(BaseCommand):
                                 'or',
                                 'select',
                                 'store']
-                self.generate_plots(df=df, xcolumns=metric_columns+sort_columns+func_columns, ycolumns=['solver_time'], solver=solver, name='metrics', lower=lower,upper=upper, num_datapoints=num_datapoints)
+                self.generate_plots(df=df, xcolumns=metric_columns+sort_columns+func_columns, ycolumns=['solver_time'], solver=solver, name='metrics', lower=lower,upper=upper, num_datapoints=num_datapoints, dumppath=kwargs.get('dumppath'))
+                self.generate_correlation_plots(df=df, xcolumns=metric_columns+sort_columns+func_columns, ycolumns=['solver_time'], solver=solver, name='metrics', lower=lower,upper=upper, num_datapoints=num_datapoints, dumppath=kwargs.get('dumppath'))
 
 
 
